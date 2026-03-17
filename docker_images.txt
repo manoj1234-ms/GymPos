@@ -1,0 +1,7 @@
+REPOSITORY            TAG         SIZE
+shannon-worker        latest      3.93GB
+postgres              15-alpine   392MB
+node                  20-slim     289MB
+redis                 latest      202MB
+redis                 7-alpine    60.7MB
+temporalio/temporal   latest      276MB

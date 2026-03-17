@@ -1,0 +1,106 @@
+name: GymPos CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ─── STAGE 1: Run Backend Tests ───────────────────────────────────────────
+  test-backend:
+    name: 🧪 Backend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run tests
+        working-directory: backend
+        run: python -m pytest test_main.py -v --tb=short
+
+  # ─── STAGE 2: Build Frontend ──────────────────────────────────────────────
+  test-frontend:
+    name: 🏗️ Frontend Build Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Next.js app
+        working-directory: frontend
+        run: npm run build
+
+  # ─── STAGE 3: Docker Build & Push (only on main, after tests pass) ────────
+  docker-build:
+    name: 🐳 Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push Backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/gympos-backend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/gympos-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/gympos-frontend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/gympos-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Post build summary
+        run: |
+          echo "## 🚀 Deploy Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Backend: ${{ secrets.DOCKERHUB_USERNAME }}/gympos-backend:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Frontend: ${{ secrets.DOCKERHUB_USERNAME }}/gympos-frontend:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔖 Commit SHA: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
