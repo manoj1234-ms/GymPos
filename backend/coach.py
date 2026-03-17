@@ -1,15 +1,47 @@
-import ollama
+import os
 import json
+import traceback
 
 class CoachingAgent:
     def __init__(self, model="llama3"):
-        self.model = model
-        self.client = ollama.AsyncClient()
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
+        self.use_groq = bool(self.groq_api_key)
+        
+        if self.use_groq:
+            import groq
+            self.model = "llama3-8b-8192"  # Fast Groq Llama3 model
+            self.client = groq.AsyncGroq(api_key=self.groq_api_key)
+            print("🏋️  AI Coach: Using Cloud LLM (Groq Llama 3)")
+        else:
+            import ollama
+            self.model = model
+            self.client = ollama.AsyncClient()
+            print("🏋️  AI Coach: Using Local LLM (Ollama)")
+
+    async def _chat(self, prompt, temperature=0.5):
+        try:
+            if self.use_groq:
+                # Groq API call
+                completion = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=temperature,
+                    max_tokens=150
+                )
+                return completion.choices[0].message.content
+            else:
+                # Ollama API call
+                response = await self.client.chat(model=self.model, messages=[
+                    {'role': 'user', 'content': prompt}
+                ], options={'temperature': temperature})
+                return response['message']['content']
+        except Exception as e:
+            print(f"LLM Inference Error: {e}")
+            raise e
 
     async def get_coaching_tip(self, exercise, current_stats):
         stats_data = json.loads(current_stats)
         
-        # Determine if it's a voice query or an automated rep tip
         user_query = stats_data.get('user_speech', '')
         
         if user_query:
@@ -37,11 +69,8 @@ class CoachingAgent:
             """
             
         try:
-            response = await self.client.chat(model=self.model, messages=[
-                {'role': 'user', 'content': prompt}
-            ], options={'temperature': 0.4})
-            return response['message']['content']
-        except Exception as e:
+            return await self._chat(prompt, temperature=0.4)
+        except:
             return "Keep your core tight and maintain steady breathing!"
 
     async def get_session_summary(self, session_data):
@@ -56,10 +85,7 @@ class CoachingAgent:
         4. Tone: Technical, Professional, and Elite.
         """
         try:
-            response = await self.client.chat(model=self.model, messages=[
-                {'role': 'user', 'content': prompt}
-            ], options={'temperature': 0.5})
-            return response['message']['content']
+            return await self._chat(prompt, temperature=0.5)
         except:
             return "Great session. Focus on consistency and progressive overload."
 
@@ -76,10 +102,7 @@ class CoachingAgent:
         5. Tone: Technical, Bio-Metric focused.
         """
         try:
-            response = await self.client.chat(model=self.model, messages=[
-                {'role': 'user', 'content': prompt}
-            ], options={'temperature': 0.6})
-            return response['message']['content']
+            return await self._chat(prompt, temperature=0.6)
         except:
             return "Prioritize bio-available protein (30-40g) and fast-acting glycogen replenishment within the 60min window. Maintain electrolyte-stabilized hydration."
 
