@@ -12,6 +12,21 @@ jobs:
     name: 🧪 Backend Tests
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: gympos
+          POSTGRES_PASSWORD: gympos_pass
+          POSTGRES_DB: gympos_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,6 +45,8 @@ jobs:
 
       - name: Run tests
         working-directory: backend
+        env:
+          DATABASE_URL: postgresql://gympos:gympos_pass@localhost:5432/gympos_test
         run: python -m pytest test_main.py -v --tb=short
 
   # ─── STAGE 2: Build Frontend ──────────────────────────────────────────────
