@@ -37,7 +37,10 @@ app = FastAPI(title="AI Gym Trainer API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://gym-pos-livid.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -219,9 +222,37 @@ async def send_otp(username: str):
     user.otp_code = otp
     user.otp_expiry = datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
     db.commit()
-    print(f"DEBUG: OTP for {username} is: {otp}") # Mock sending
+    
+    # Render Console debug fallback
+    print(f"==============\nDEBUG: OTP for {username} is: {otp}\n==============")
+    
+    # Try sending real email if SMTP configured
+    import smtplib
+    from email.mime.text import MIMEText
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASS")
+    
+    msg_status = "Check Render console logs for OTP."
+    if smtp_user and smtp_pass:
+        try:
+            msg = MIMEText(f"Your GymPos Bio-Link verification code is: {otp}\nExpires in 10 minutes.")
+            msg['Subject'] = 'GymPos OTP Code'
+            msg['From'] = smtp_user
+            msg['To'] = user.email
+
+            server = smtplib.SMTP(os.getenv("SMTP_HOST", "smtp.gmail.com"), int(os.getenv("SMTP_PORT", "587")))
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+            server.quit()
+            msg_status = f"OTP sent to {user.email}"
+            print(f"Email sent successfully to {user.email}")
+        except Exception as e:
+            print(f"Failed to send email: {e}")
+            msg_status = "Failed to send email. Check Render logs for OTP."
+
     db.close()
-    return {"message": "OTP sent to your registered channel (Check console logs for now)"}
+    return {"message": msg_status}
 
 @app.post("/verify-otp")
 async def verify_otp(data: OTPVerify):
