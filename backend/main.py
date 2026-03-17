@@ -229,16 +229,71 @@ async def send_otp(username: str):
     # Try sending real email if SMTP configured
     import smtplib
     from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
     smtp_user = os.getenv("SMTP_USER")
     smtp_pass = os.getenv("SMTP_PASS")
     
     msg_status = "Check Render console logs for OTP."
     if smtp_user and smtp_pass:
         try:
-            msg = MIMEText(f"Your GymPos Bio-Link verification code is: {otp}\nExpires in 10 minutes.")
-            msg['Subject'] = 'GymPos OTP Code'
-            msg['From'] = smtp_user
+            msg = MIMEMultipart("alternative")
+            msg['Subject'] = 'GymPos - Your Bio-Link Verification Code'
+            msg['From'] = f"GymPos ProTrainer <{smtp_user}>"
             msg['To'] = user.email
+
+            # Pure text fallback
+            text = f"Your GymPos Bio-Link verification code is: {otp}\nExpires in 10 minutes."
+            
+            # Premium HTML Design
+            html = f"""\
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                body {{ font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 40px 20px; }}
+                .container {{ max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); }}
+                .header {{ background: linear-gradient(135deg, #0f172a 0%, #334155 100%); padding: 40px 20px; text-align: center; }}
+                .header h1 {{ color: #ffffff; margin: 0; font-size: 32px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }}
+                .header span {{ color: #3b82f6; }}
+                .content {{ padding: 40px 40px; text-align: center; }}
+                .content h2 {{ color: #0f172a; font-size: 22px; margin-top: 0; margin-bottom: 20px; }}
+                .content p {{ color: #64748b; font-size: 16px; line-height: 1.6; margin-bottom: 24px; }}
+                .otp-box {{ background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 25px; margin: 30px 0; }}
+                .otp-code {{ font-family: monospace; font-size: 46px; font-weight: 800; color: #0f172a; letter-spacing: 12px; margin: 0; }}
+                .footer {{ background-color: #f8fafc; padding: 25px; text-align: center; border-top: 1px solid #e2e8f0; }}
+                .footer p {{ color: #94a3b8; font-size: 13px; margin: 0; }}
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1>Gym<span>Pos</span></h1>
+                </div>
+                <div class="content">
+                  <h2>Login Verification</h2>
+                  <p>Hi <strong>{username}</strong>,</p>
+                  <p>You requested a verification code to access your ProTrainer dashboard. Please use the secured code below to bio-link your session:</p>
+                  
+                  <div class="otp-box">
+                    <p class="otp-code">{otp}</p>
+                  </div>
+                  
+                  <p style="font-size: 14px; color: #ef4444; font-weight: 600;">⚠️ This code expires in 10 minutes.</p>
+                  <p style="font-size: 14px;">If you didn't request this code, you can safely ignore this email.</p>
+                </div>
+                <div class="footer">
+                  <p>&copy; 2026 GymPos Agent. Train smarter, not harder.</p>
+                </div>
+              </div>
+            </body>
+            </html>
+            """
+            
+            part1 = MIMEText(text, 'plain')
+            part2 = MIMEText(html, 'html')
+
+            msg.attach(part1)
+            msg.attach(part2)
 
             server = smtplib.SMTP(os.getenv("SMTP_HOST", "smtp.gmail.com"), int(os.getenv("SMTP_PORT", "587")))
             server.starttls()
